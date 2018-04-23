@@ -23,16 +23,15 @@ Morphological Active Contours without Edges, respectively. See the
 aforementioned paper for full details.
 
 See test.py for examples of usage.
-"""
 
 __author__ = "P. Márquez Neila <p.mneila@upm.es>"
-
+"""
 from itertools import cycle
 
 import numpy as np
-from scipy import ndimage
 from scipy.ndimage import binary_dilation, binary_erosion, \
                         gaussian_filter, gaussian_gradient_magnitude
+
 
 class fcycle(object):
     
@@ -46,20 +45,22 @@ class fcycle(object):
     
 
 # SI and IS operators for 2D and 3D.
-_P2 = [np.eye(3), np.array([[0,1,0]]*3), np.flipud(np.eye(3)), np.rot90([[0,1,0]]*3)]
-_P3 = [np.zeros((3,3,3)) for i in range(9)]
+_P2 = [np.eye(3), np.array([[0, 1, 0]]*3), np.flipud(np.eye(3)), np.rot90([[0, 1, 0]]*3)]
+_P3 = [np.zeros((3, 3, 3)) for i in range(9)]
 
-_P3[0][:,:,1] = 1
-_P3[1][:,1,:] = 1
-_P3[2][1,:,:] = 1
-_P3[3][:,[0,1,2],[0,1,2]] = 1
-_P3[4][:,[0,1,2],[2,1,0]] = 1
-_P3[5][[0,1,2],:,[0,1,2]] = 1
-_P3[6][[0,1,2],:,[2,1,0]] = 1
-_P3[7][[0,1,2],[0,1,2],:] = 1
-_P3[8][[0,1,2],[2,1,0],:] = 1
+_P3[0][:, :, 1] = 1
+_P3[1][:, 1, :] = 1
+_P3[2][1, :, :] = 1
+_P3[3][:, [0, 1, 2], [0, 1, 2]] = 1
+_P3[4][:, [0, 1, 2], [2, 1, 0]] = 1
+_P3[5][[0, 1, 2], :, [0, 1, 2]] = 1
+_P3[6][[0, 1, 2], :, [2, 1, 0]] = 1
+_P3[7][[0, 1, 2], [0, 1, 2], :] = 1
+_P3[8][[0, 1, 2], [2, 1, 0], :] = 1
 
-_aux = np.zeros((0))
+_aux = np.zeros(0)
+
+
 def SI(u):
     """SI operator."""
     global _aux
@@ -77,6 +78,7 @@ def SI(u):
         _aux_i[:] = binary_erosion(u, P_i)
     
     return _aux.max(0)
+
 
 def IS(u):
     """IS operator."""
@@ -96,10 +98,12 @@ def IS(u):
     
     return _aux.min(0)
 
+
 # SIoIS operator.
 SIoIS = lambda u: SI(IS(u))
 ISoSI = lambda u: IS(SI(u))
 curvop = fcycle([SIoIS, ISoSI])
+
 
 # Stopping factors (function g(I) in the paper).
 def gborders(img, alpha=1.0, sigma=1.0):
@@ -108,9 +112,11 @@ def gborders(img, alpha=1.0, sigma=1.0):
     gradnorm = gaussian_gradient_magnitude(img, sigma, mode='constant')
     return 1.0/np.sqrt(1.0 + alpha*gradnorm)
 
+
 def glines(img, sigma=1.0):
     """Stopping criterion for image black lines."""
     return gaussian_filter(img, sigma)
+
 
 class MorphACWE(object):
     """Morphological ACWE based on the Chan-Vese energy functional."""
@@ -121,7 +127,7 @@ class MorphACWE(object):
         Parameters
         ----------
         data : ndarray
-            The image data.
+            The image data. Works also with N-dim.
         smoothing : scalar
             The number of repetitions of the smoothing step (the
             curv operator) in each iteration. In other terms,
@@ -140,8 +146,8 @@ class MorphACWE(object):
     
     def set_levelset(self, u):
         self._u = np.double(u)
-        self._u[u>0] = 1
-        self._u[u<=0] = 0
+        self._u[u > 0] = 1
+        self._u[u <= 0] = 0
     
     levelset = property(lambda self: self._u,
                         set_levelset,
@@ -158,15 +164,14 @@ class MorphACWE(object):
         data = self.data
         
         # Determine c0 and c1.
-        inside = u>0
-        outside = u<=0
+        inside = u > 0
+        outside = u <= 0
         c0 = data[outside].sum() / float(outside.sum())
         c1 = data[inside].sum() / float(inside.sum())
         
         # Image attachment.
         dres = np.array(np.gradient(u))
         abs_dres = np.abs(dres).sum(0)
-        #aux = abs_dres * (c0 - c1) * (c0 + c1 - 2*data)
         aux = abs_dres * (self.lambda1*(data - c1)**2 - self.lambda2*(data - c0)**2)
         
         res = np.copy(u)
@@ -208,13 +213,16 @@ class MorphGAC(object):
         self._v = balloon
         self._theta = threshold
         self.smoothing = smoothing
-        
+
+        self._data = None
+        self._ddata = None
+        self.structure = None
         self.set_data(data)
     
     def set_levelset(self, u):
         self._u = np.double(u)
-        self._u[u>0] = 1
-        self._u[u<=0] = 0
+        self._u[u > 0] = 1
+        self._u[u <= 0] = 0
     
     def set_balloon(self, v):
         self._v = v
@@ -243,19 +251,17 @@ class MorphGAC(object):
                         set_data,
                         doc="The data that controls the snake evolution (the image or g(I)).")
     balloon = property(lambda self: self._v,
-                        set_balloon,
-                        doc="The morphological balloon parameter (ν (nu, not v)).")
+                       set_balloon,
+                       doc="The morphological balloon parameter (ν (nu, not v)).")
     threshold = property(lambda self: self._theta,
-                        set_threshold,
-                        doc="The threshold value (θ).")
+                         set_threshold,
+                         doc="The threshold value (θ).")
     
     def step(self):
         """Perform a single step of the morphological snake evolution."""
         # Assign attributes to local variables for convenience.
         u = self._u
-        gI = self._data
         dgI = self._ddata
-        theta = self._theta
         v = self._v
         
         if u is None:
@@ -268,7 +274,10 @@ class MorphGAC(object):
             aux = binary_dilation(u, self.structure)
         elif v < 0:
             aux = binary_erosion(u, self.structure)
-        if v!= 0:
+        else:
+            aux = None
+
+        if not v == 0:
             res[self._threshold_mask_v] = aux[self._threshold_mask_v]
         
         # Image attachment.
@@ -337,47 +346,48 @@ def evolve_visual(msnake, levelset=None, num_iters=20, background=None):
         ax1.contour(msnake.levelset, [0.5], colors='r')
         ax_u.set_data(msnake.levelset)
         fig.canvas.draw()
-        #ppl.pause(0.001)
+        # ppl.pause(0.001)
     
     # Return the last levelset.
     return msnake.levelset
 
-def evolve_visual3d(msnake, levelset=None, num_iters=20):
-    """
-    Visual evolution of a three-dimensional morphological snake.
-    
-    Parameters
-    ----------
-    msnake : MorphGAC or MorphACWE instance
-        The morphological snake solver.
-    levelset : array-like, optional
-        If given, the levelset of the solver is initialized to this. If not
-        given, the evolution will use the levelset already set in msnake.
-    num_iters : int, optional
-        The number of iterations.
-    """
-    from mayavi import mlab
-    import matplotlib.pyplot as ppl
-    
-    if levelset is not None:
-        msnake.levelset = levelset
-    
-    fig = mlab.gcf()
-    mlab.clf()
-    src = mlab.pipeline.scalar_field(msnake.data)
-    mlab.pipeline.image_plane_widget(src, plane_orientation='x_axes', colormap='gray')
-    cnt = mlab.contour3d(msnake.levelset, contours=[0.5])
-    
-    @mlab.animate(ui=True)
-    def anim():
-        for i in range(num_iters):
-            msnake.step()
-            cnt.mlab_source.scalars = msnake.levelset
-            print("Iteration %s/%s..." % (i + 1, num_iters))
-            yield
-    
-    anim()
-    mlab.show()
-    
-    # Return the last levelset.
-    return msnake.levelset
+#
+# def evolve_visual3d(msnake, levelset=None, num_iters=20):
+#     """
+#     Visual evolution of a three-dimensional morphological snake.
+#
+#     Parameters
+#     ----------
+#     msnake : MorphGAC or MorphACWE instance
+#         The morphological snake solver.
+#     levelset : array-like, optional
+#         If given, the levelset of the solver is initialized to this. If not
+#         given, the evolution will use the levelset already set in msnake.
+#     num_iters : int, optional
+#         The number of iterations.
+#     """
+#     from mayavi import mlab
+#     import matplotlib.pyplot as ppl
+#
+#     if levelset is not None:
+#         msnake.levelset = levelset
+#
+#     fig = mlab.gcf()
+#     mlab.clf()
+#     src = mlab.pipeline.scalar_field(msnake.data)
+#     mlab.pipeline.image_plane_widget(src, plane_orientation='x_axes', colormap='gray')
+#     cnt = mlab.contour3d(msnake.levelset, contours=[0.5])
+#
+#     @mlab.animate(ui=True)
+#     def anim():
+#         for i in range(num_iters):
+#             msnake.step()
+#             cnt.mlab_source.scalars = msnake.levelset
+#             print("Iteration %s/%s..." % (i + 1, num_iters))
+#             yield
+#
+#     anim()
+#     mlab.show()
+#
+#     # Return the last levelset.
+#     return msnake.levelset
